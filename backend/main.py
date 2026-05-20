@@ -6,6 +6,7 @@ from datetime import date, datetime
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
+from groq import Groq
 
 app = FastAPI(title="Finance Tracker API")
 
@@ -27,6 +28,10 @@ def get_db_connection():
         password=os.getenv("DB_PASSWORD", "postgres"),
         cursor_factory=RealDictCursor
     )
+
+# Groq client
+groq_api_key = os.getenv("GROQ_API_KEY")
+groq_client = Groq(api_key=groq_api_key) if groq_api_key else None
 
 # Pydantic models
 class TransactionBase(BaseModel):
@@ -237,6 +242,66 @@ def clear_all_transactions():
     conn.close()
     
     return {"message": "All transactions cleared"}
+
+@app.get("/recommendations")
+def get_financial_recommendations():
+    if not groq_client:
+        raise HTTPException(status_code=503, detail="Groq API key not configured")
+    
+    # Get transaction data
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    cur.execute("SELECT type, amount, category, date, description FROM transactions ORDER BY date DESC LIMIT 50")
+    transactions = cur.fetchall()
+    
+    cur.execute("SELECT SUM(amount) FROM transactions WHERE type = 'Income'")
+    income = cur.fetchone()['sum'] or 0
+    
+    cur.execute("SELECT SUM(amount) FROM transactions WHERE type = 'Expense'")
+    expenses = cur.fetchone()['sum'] or 0
+    
+    cur.close()
+    conn.close()
+    
+    # Prepare transaction summary for the AI
+    transaction_summary = f"""
+    Total Income: ${income}
+    Total Expenses: ${expenses}
+    Balance: ${income - expenses}
+    
+    Recent Transactions:
+    """
+    
+    for t in transactions:
+        transaction_summary += f"- {t['type']}: ${t['amount']} ({t['category']}) on {t['date']}"
+        if t['description']:
+            transaction_summary += f" - {t['description']}"
+        transaction_summary += "\n"
+    
+    # Get recommendations from Groq
+    try:
+        response = groq_client.chat.completions.create(
+            model="llama3-70b-8192",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a financial advisor. Provide specific, actionable advice based on the user's transaction data. Be concise and practical. Focus on helping them save money and make better financial decisions."
+                },
+                {
+                    "role": "user",
+                    "content": f"Based on my financial data, please provide 3-5 specific recommendations for being more financially responsible:\n{transaction_summary}"
+                }
+            ],
+            temperature=0.7,
+            max_tokens=500
+        )
+        
+        recommendations = response.choices[0].message.content
+        return {"recommendations": recommendations}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get recommendations: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

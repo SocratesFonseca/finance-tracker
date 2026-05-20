@@ -30,22 +30,20 @@ services:
       DB_NAME: finance_tracker
       DB_USER: postgres
       DB_PASSWORD: postgres
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
     volumes:
       - ./backend:/app/backend
     restart: unless-stopped
-frontend:
+  frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: finance-tracker-frontend
     ports:
       - "5173:5173"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
     environment:
       - VITE_API_URL=http://localhost:8000
     depends_on:

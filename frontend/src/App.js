@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Wallet, TrendingUp, TrendingDown, Plus, Trash2, RefreshCw } from 'lucide-react';
+import { Wallet, TrendingUp, TrendingDown, Plus, Trash2, RefreshCw, MessageCircle, X } from 'lucide-react';
 import './App.css';
 
 const API_URL = 'http://localhost:8000';
@@ -10,6 +10,9 @@ function App() {
   const [recurringTransactions, setRecurringTransactions] = useState([]);
   const [summary, setSummary] = useState({ income: 0, expenses: 0, balance: 0 });
   const [showForm, setShowForm] = useState(false);
+  const [showRecommendations, setShowRecommendations] = useState(false);
+  const [recommendations, setRecommendations] = useState('');
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
   const [formData, setFormData] = useState({
     type: 'Expense',
     amount: '',
@@ -114,6 +117,20 @@ function App() {
     }
   };
 
+  const getRecommendations = async () => {
+    setLoadingRecommendations(true);
+    try {
+      const response = await axios.get(`${API_URL}/recommendations`);
+      setRecommendations(response.data.recommendations);
+      setShowRecommendations(true);
+    } catch (error) {
+      console.error('Error getting recommendations:', error);
+      alert('Failed to get recommendations. Make sure GROQ_API_KEY is configured.');
+    } finally {
+      setLoadingRecommendations(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-600 to-blue-600 p-8">
       <div className="max-w-6xl mx-auto">
@@ -167,6 +184,14 @@ function App() {
           >
             <RefreshCw className="w-5 h-5" />
             Apply Recurring
+          </button>
+          <button
+            onClick={getRecommendations}
+            disabled={loadingRecommendations}
+            className="bg-gradient-to-r from-green-500 to-teal-500 text-white px-6 py-3 rounded-lg font-semibold hover:from-green-600 hover:to-teal-600 transition flex items-center gap-2 disabled:opacity-50"
+          >
+            <MessageCircle className="w-5 h-5" />
+            {loadingRecommendations ? 'Loading...' : 'AI Recommendations'}
           </button>
           <button
             onClick={clearAll}
@@ -363,6 +388,29 @@ function App() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* AI Recommendations Modal */}
+        {showRecommendations && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-xl p-6 shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <MessageCircle className="w-6 h-6 text-green-500" />
+                  AI Financial Recommendations
+                </h2>
+                <button
+                  onClick={() => setShowRecommendations(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="prose prose-sm max-w-none">
+                <p className="whitespace-pre-wrap text-gray-700">{recommendations}</p>
+              </div>
             </div>
           </div>
         )}
