@@ -537,7 +537,7 @@ function App() {
           </div>
         )}
 
-        {/* AI Recommendations Modal */}
+{/* AI Recommendations Modal */}
         {showRecommendations && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-xl p-6 shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
@@ -559,7 +559,8 @@ function App() {
             </div>
           </div>
         )}
-          </>
+        </>
+        )}
       </div>
     </div>
   );
