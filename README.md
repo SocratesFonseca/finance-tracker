@@ -7,4 +7,4 @@
 - Transactions can be recurring (weekly, biweekly, monthly, etc.)
 - Summary of transactions including income, expenses, and current balance 
 - Local CSV storage
-- Personaized financial recommendations 
+- Personalized financial recommendations 
