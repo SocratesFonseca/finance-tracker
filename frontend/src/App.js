@@ -13,6 +13,15 @@ function App() {
   const [showRecommendations, setShowRecommendations] = useState(false);
   const [recommendations, setRecommendations] = useState('');
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [token, setToken] = useState(localStorage.getItem('token') || null);
+  const [showLogin, setShowLogin] = useState(true);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [authForm, setAuthForm] = useState({
+    username: '',
+    email: '',
+    password: ''
+  });
   const [formData, setFormData] = useState({
     type: 'Expense',
     amount: '',
@@ -27,27 +36,45 @@ function App() {
   const incomeCategories = ['Job', 'Freelance', 'Gift', 'Other'];
 
   useEffect(() => {
-    fetchData();
+    if (token) {
+      setIsAuthenticated(true);
+      setShowLogin(false);
+      fetchData();
+    }
+  }, [token]);
+
+  useEffect(() => {
+    const savedToken = localStorage.getItem('token');
+    if (savedToken) {
+      setToken(savedToken);
+      setIsAuthenticated(true);
+      setShowLogin(false);
+    }
   }, []);
 
   const fetchData = async () => {
     try {
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const [transRes, recRes, sumRes] = await Promise.all([
-        axios.get(`${API_URL}/transactions`),
-        axios.get(`${API_URL}/recurring`),
-        axios.get(`${API_URL}/summary`)
+        axios.get(`${API_URL}/transactions`, { headers }),
+        axios.get(`${API_URL}/recurring`, { headers }),
+        axios.get(`${API_URL}/summary`, { headers })
       ]);
       setTransactions(transRes.data);
       setRecurringTransactions(recRes.data);
       setSummary(sumRes.data);
     } catch (error) {
       console.error('Error fetching data:', error);
+      if (error.response?.status === 401) {
+        handleLogout();
+      }
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      const headers = { Authorization: `Bearer ${token}` };
       const transactionData = {
         type: formData.type,
         amount: parseFloat(formData.amount),
@@ -58,9 +85,9 @@ function App() {
       };
 
       if (formData.isRecurring) {
-        await axios.post(`${API_URL}/recurring`, transactionData);
+        await axios.post(`${API_URL}/recurring`, transactionData, { headers });
       } else {
-        await axios.post(`${API_URL}/transactions`, transactionData);
+        await axios.post(`${API_URL}/transactions`, transactionData, { headers });
       }
 
       setFormData({
@@ -81,7 +108,8 @@ function App() {
 
   const deleteTransaction = async (id) => {
     try {
-      await axios.delete(`${API_URL}/transactions/${id}`);
+      const headers = { Authorization: `Bearer ${token}` };
+      await axios.delete(`${API_URL}/transactions/${id}`, { headers });
       fetchData();
     } catch (error) {
       console.error('Error deleting transaction:', error);
@@ -90,7 +118,8 @@ function App() {
 
   const deleteRecurring = async (id) => {
     try {
-      await axios.delete(`${API_URL}/recurring/${id}`);
+      const headers = { Authorization: `Bearer ${token}` };
+      await axios.delete(`${API_URL}/recurring/${id}`, { headers });
       fetchData();
     } catch (error) {
       console.error('Error deleting recurring transaction:', error);
@@ -99,7 +128,8 @@ function App() {
 
   const applyRecurring = async () => {
     try {
-      await axios.post(`${API_URL}/apply-recurring`);
+      const headers = { Authorization: `Bearer ${token}` };
+      await axios.post(`${API_URL}/apply-recurring`, {}, { headers });
       fetchData();
     } catch (error) {
       console.error('Error applying recurring transactions:', error);
@@ -109,7 +139,8 @@ function App() {
   const clearAll = async () => {
     if (window.confirm('Are you sure you want to clear all transactions?')) {
       try {
-        await axios.delete(`${API_URL}/clear-all`);
+        const headers = { Authorization: `Bearer ${token}` };
+        await axios.delete(`${API_URL}/clear-all`, { headers });
         fetchData();
       } catch (error) {
         console.error('Error clearing transactions:', error);
@@ -120,7 +151,8 @@ function App() {
   const getRecommendations = async () => {
     setLoadingRecommendations(true);
     try {
-      const response = await axios.get(`${API_URL}/recommendations`);
+      const headers = { Authorization: `Bearer ${token}` };
+      const response = await axios.get(`${API_URL}/recommendations`, { headers });
       setRecommendations(response.data.recommendations);
       setShowRecommendations(true);
     } catch (error) {
@@ -131,16 +163,129 @@ function App() {
     }
   };
 
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    try {
+      const formData = new URLSearchParams();
+      formData.append('username', authForm.username);
+      formData.append('password', authForm.password);
+
+      const response = await axios.post(`${API_URL}/token`, formData, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      });
+
+      const accessToken = response.data.access_token;
+      localStorage.setItem('token', accessToken);
+      setToken(accessToken);
+      setIsAuthenticated(true);
+      setShowLogin(false);
+      fetchData();
+    } catch (error) {
+      console.error('Login error:', error);
+      alert('Login failed. Please check your credentials.');
+    }
+  };
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await axios.post(`${API_URL}/register`, authForm);
+      alert('Registration successful! Please login.');
+      setIsRegistering(false);
+    } catch (error) {
+      console.error('Registration error:', error);
+      alert('Registration failed. Username or email may already exist.');
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setToken(null);
+    setIsAuthenticated(false);
+    setShowLogin(true);
+    setTransactions([]);
+    setRecurringTransactions([]);
+    setSummary({ income: 0, expenses: 0, balance: 0 });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-600 to-blue-600 p-8">
       <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2 flex items-center justify-center gap-3">
-            <Wallet className="w-10 h-10" />
-            Personal Finance Tracker
-          </h1>
-          <p className="text-white/80">Track your income and expenses</p>
-        </div>
+        {showLogin ? (
+          <div className="flex items-center justify-center min-h-[80vh]">
+            <div className="bg-white rounded-xl p-8 shadow-2xl w-full max-w-md">
+              <h2 className="text-3xl font-bold text-center mb-6 flex items-center justify-center gap-2">
+                <Wallet className="w-8 h-8 text-purple-600" />
+                {isRegistering ? 'Create Account' : 'Login'}
+              </h2>
+              <form onSubmit={isRegistering ? handleRegister : handleLogin} className="space-y-4">
+                {isRegistering && (
+                  <div>
+                    <label className="block text-gray-700 mb-2">Email</label>
+                    <input
+                      type="email"
+                      value={authForm.email}
+                      onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
+                      className="w-full p-3 border rounded-lg"
+                      required
+                    />
+                  </div>
+                )}
+                <div>
+                  <label className="block text-gray-700 mb-2">Username</label>
+                  <input
+                    type="text"
+                    value={authForm.username}
+                    onChange={(e) => setAuthForm({ ...authForm, username: e.target.value })}
+                    className="w-full p-3 border rounded-lg"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-700 mb-2">Password</label>
+                  <input
+                    type="password"
+                    value={authForm.password}
+                    onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
+                    className="w-full p-3 border rounded-lg"
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="w-full bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 transition"
+                >
+                  {isRegistering ? 'Register' : 'Login'}
+                </button>
+              </form>
+              <p className="text-center mt-4 text-gray-600">
+                {isRegistering ? 'Already have an account?' : "Don't have an account?"}
+                <button
+                  onClick={() => setIsRegistering(!isRegistering)}
+                  className="text-purple-600 font-semibold ml-2 hover:underline"
+                >
+                  {isRegistering ? 'Login' : 'Register'}
+                </button>
+              </p>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="text-center mb-8 flex items-center justify-between">
+              <div className="text-left">
+                <h1 className="text-4xl font-bold text-white mb-2 flex items-center gap-3">
+                  <Wallet className="w-10 h-10" />
+                  Personal Finance Tracker
+                </h1>
+                <p className="text-white/80">Track your income and expenses</p>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="bg-white/20 text-white px-4 py-2 rounded-lg hover:bg-white/30 transition"
+              >
+                Logout
+              </button>
+            </div>
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -414,6 +559,7 @@ function App() {
             </div>
           </div>
         )}
+          </>
       </div>
     </div>
   );

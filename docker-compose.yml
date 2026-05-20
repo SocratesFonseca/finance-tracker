@@ -29,7 +29,8 @@ services:
       DB_HOST: postgres
       DB_NAME: finance_tracker
       DB_USER: postgres
-      DB_PASSWORD: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      SECRET_KEY: ${SECRET_KEY:-your-secret-key-change-this-in-production}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
     depends_on:
       postgres:
