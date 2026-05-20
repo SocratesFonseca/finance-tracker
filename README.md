@@ -10,7 +10,7 @@
 - Authentication
 - AI financial recommendations
 
-##Tech Stack
+## Tech Stack
 ### Frontend - React
 ### Backend - FastAPI (Python)
 ### Database - PostgreSQL
